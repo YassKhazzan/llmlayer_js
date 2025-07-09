@@ -1,0 +1,43 @@
+{
+  "name": "llmlayer",
+  "version": "0.1.5",
+  "description": "Official JavaScript / TypeScript SDK for the LLMLayer Search & Answer API",
+  "type": "module",
+  "author": {
+    "name": "Yassine Khazzan",
+    "email": "yassine@llmlayer.ai",
+    "url": "https://llmlayer.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YassKhazzan/llmlayer_js"
+  },
+  "bugs": {
+    "url": "https://github.com/YassKhazzan/llmlayer_js/issues"
+  },
+  "homepage": "https://github.com/YassKhazzan/llmlayer_js#readme",
+  "exports": {
+    "import": "./dist/index.js",
+    "require": "./dist/index.cjs"
+  },
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "dev": "ts-node-dev --respawn src/examples/local-demo.mts"
+  },
+  "dependencies": {
+    "undici": "^6.21.3",
+    "dotenv": "^10.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.1",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.0"
+  }
+}
