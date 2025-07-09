@@ -58,7 +58,7 @@ export class LLMLayerClient {
     private readonly providerKey: string;
     private readonly baseURL: string;
     private readonly timeout: number;
-    private static readonly version = '0.1.5';        // <-- keep in sync with package.json
+    private static readonly version = '0.1.6';        // <-- keep in sync with package.json
 
     constructor(opts: LLMLayerClientOptions = {}) {
         this.apiKey = opts.apiKey ?? process.env.LLMLAYER_API_KEY ?? missing('LLMLAYER_API_KEY');

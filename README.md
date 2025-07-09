@@ -2,7 +2,6 @@
 
 [![npm](https://img.shields.io/npm/v/llmlayer?color=blue)](https://www.npmjs.com/package/llmlayer)
 [![license](https://img.shields.io/npm/l/llmlayer.svg)](LICENSE)
-[![CI](https://github.com/YassKhazzan/llmlayer_js/actions/workflows/ci.yml/badge.svg)](https://github.com/YassKhazzan/llmlayer_js/actions)
 
 > **Search – Reason – Cite** with one function call
 > The *official* JavaScript / TypeScript client for the **[LLMLayer Search & Answer API](https://llmlayer.ai)**.
@@ -145,7 +144,7 @@ const client = new LLMLayerClient({ provider: 'openai' }); // all keys auto‑p
 
 ## Need Help?
 
-* 💬 [Join our Discord](https://discord.gg/llmlayer)
+* 💬 [Join our Discord](https://discord.gg/EqQF4cjTq5)
 * 🐛 [Open an issue](https://github.com/YassKhazzan/llmlayer_js/issues)
 
 ---
