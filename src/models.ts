@@ -22,7 +22,7 @@ export interface SearchRequest {
 }
 
 export interface SimplifiedSearchResponse {
-    llm_response: string;
+    llm_response: string | object;
     response_time: number;
     input_tokens: number;
     output_tokens: number;

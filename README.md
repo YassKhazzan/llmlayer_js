@@ -52,7 +52,7 @@ console.log(resp.llm_response);
 /* 2️⃣ Streaming */
 for await (const ev of client.searchStream({
   query: 'Explain brown dwarfs in two sentences',
-  model: 'gpt‑4o‑mini',
+  model: 'gpt‑4.1‑mini',
   returnSources: true
 })) {
   if (ev.type === 'llm')        process.stdout.write(ev.content);
