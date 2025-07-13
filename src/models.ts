@@ -1,4 +1,4 @@
-export type Provider = 'openai' | 'gemini' | 'anthropic' | 'groq' | 'deepseek';
+export type Provider = 'openai' | 'gemini' | 'anthropic' | 'groq' | 'deepseek' | 'grok';
 
 export interface SearchRequest {
     provider: Provider;
