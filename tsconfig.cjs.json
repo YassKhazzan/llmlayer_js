@@ -1,18 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // ✅ produce CommonJS *via* the Node16 emitter
-    "module": "Node16",
-    "moduleResolution": "Node16",
-
-    // put CJS files in a sub-folder so they don’t clash
+    "module": "commonjs",
+    "moduleResolution": "node",
     "outDir": "dist/cjs",
-
-    // keep d.ts files (handy for consumers)
     "declaration": true,
     "declarationMap": false,
-
-    // optional extras
     "sourceMap": false,
     "removeComments": true
   }

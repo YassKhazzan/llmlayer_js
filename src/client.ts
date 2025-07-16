@@ -17,6 +17,24 @@ async function getFetch(): Promise<typeof globalThis.fetch> {
     return fetch as unknown as typeof globalThis.fetch;
 }
 
+/* ---------- camelCase to snake_case converter ---------- */
+function toSnakeCase(str: string): string {
+    // Only convert if the string contains uppercase letters
+    if (!/[A-Z]/.test(str)) return str;
+    return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+function convertKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {  // Only include defined values
+            const snakeKey = toSnakeCase(key);
+            result[snakeKey] = value;
+        }
+    }
+    return result;
+}
+
 /* ---------- error helpers ---------- */
 const ERROR_MAP: Record<string, typeof LLMLayerError> = {
     validation_error: InvalidRequest,
@@ -79,11 +97,12 @@ export class LLMLayerClient {
     ): Promise<SimplifiedSearchResponse> {
         const fetch = await getFetch();
 
-        // Merge caller-supplied params with the client’s providerKey (if any)
+        // Merge caller-supplied params with the client's providerKey (if any)
+        // and convert any camelCase keys to snake_case
         const body: SearchRequest = {
-            ...params,
+            ...convertKeysToSnakeCase(params),
             ...(this.providerKey ? { provider_key: this.providerKey } : {}),
-        };
+        } as SearchRequest;
 
         const res = await fetch(`${this.baseURL}/api/v1/search`, {
             method: 'POST',
@@ -104,10 +123,12 @@ export class LLMLayerClient {
     ): AsyncGenerator<Record<string, unknown>> {
         const fetch = await getFetch();
 
+        // Merge caller-supplied params with the client's providerKey (if any)
+        // and convert any camelCase keys to snake_case
         const body: SearchRequest = {
-            ...params,
+            ...convertKeysToSnakeCase(params),
             ...(this.providerKey ? { provider_key: this.providerKey } : {}),
-        };
+        } as SearchRequest;
 
         const res = await fetch(`${this.baseURL}/api/v1/search_stream`, {
             method: 'POST',
