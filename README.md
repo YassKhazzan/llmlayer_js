@@ -37,14 +37,12 @@ import { LLMLayerClient } from 'llmlayer';
 
 const client = new LLMLayerClient({
   apiKey:      process.env.LLMLAYER_API_KEY,   // LLMLayer bearer
-  provider:    'openai',                       // openai|anthropic|gemini|groq|deepseek
-  providerKey: process.env.OPENAI_API_KEY      // Upstream provider key
 });
 
 /* 1️⃣ Blocking call */
 const resp = await client.search({
   query: 'Why is the sky blue?',
-  model: 'gpt‑4o‑mini',
+  model: 'openai/gpt‑4.1‑mini',
   returnSources: true
 });
 console.log(resp.llm_response);
@@ -52,7 +50,7 @@ console.log(resp.llm_response);
 /* 2️⃣ Streaming */
 for await (const ev of client.searchStream({
   query: 'Explain brown dwarfs in two sentences',
-  model: 'gpt‑4.1‑mini',
+  model: 'groq/kimi-k2',
   returnSources: true
 })) {
   if (ev.type === 'llm')        process.stdout.write(ev.content);
@@ -81,8 +79,6 @@ for await (const ev of client.searchStream({
 | option        | type          | default                    | description                        |
 | ------------- | ------------- | -------------------------- | ---------------------------------- |
 | `apiKey`      | `string`      | —                          | **Required** LLMLayer bearer token |
-| `provider`    | `'openai'\|…` | `'openai'`                 | Upstream provider name             |
-| `providerKey` | `string`      | —                          | Provider‑specific key              |
 | `baseURL`     | `string`      | `https://api.llmlayer.dev` | Override for self‑host/staging     |
 | `timeoutMs`   | `number`      | `60000`                    | Abort after N ms                   |
 
@@ -125,19 +121,12 @@ See the **Parameters** page in the docs site for the full table.
 ```bash
 # LLMLayer bearer (required)
 export LLMLAYER_API_KEY="llm_xxxxxxxxxxxxx"
-
-# Provider keys
-export OPENAI_API_KEY="sk‑..."
-export ANTHROPIC_API_KEY="sk‑ant‑..."
-export GEMINI_API_KEY="AIza..."
-export GROQ_API_KEY="gsk_..."
-export DEEPSEEK_API_KEY="sk‑..."
 ```
 
 Then simply:
 
 ```ts
-const client = new LLMLayerClient({ provider: 'openai' }); // all keys auto‑picked from env
+const client = new LLMLayerClient({ }); // all keys auto‑picked from env
 ```
 
 ---

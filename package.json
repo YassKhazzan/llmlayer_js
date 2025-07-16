@@ -1,6 +1,6 @@
 {
   "name": "llmlayer",
-  "version": "0.1.8",
+  "version": "0.1.10",
   "description": "Official JavaScript / TypeScript SDK for the LLMLayer Search & Answer API",
   "type": "module",
   "author": {

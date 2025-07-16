@@ -1,6 +1,6 @@
 /*───────────────────────────── client.ts ─────────────────────────────*/
 import { parseSSE } from './sse.js';
-import type { Provider, SearchRequest, SimplifiedSearchResponse } from './models.js';
+import type { SearchRequest, SimplifiedSearchResponse } from './models.js';
 import {
     AuthenticationError,
     InvalidRequest,
@@ -13,7 +13,7 @@ import {
 /* ---------- fetch resolver (runtime-agnostic) ---------- */
 async function getFetch(): Promise<typeof globalThis.fetch> {
     if (typeof globalThis.fetch === 'function') return globalThis.fetch.bind(globalThis);
-    const { fetch } = await import('undici');          // Node ≤18 polyfill
+    const { fetch } = await import('undici');      // Node ≤18 polyfill
     return fetch as unknown as typeof globalThis.fetch;
 }
 
@@ -45,49 +45,53 @@ function missing(name: string): never {
 
 /* ---------- public client ---------- */
 export interface LLMLayerClientOptions {
+    /** Your llmlayer account key (required). */
     apiKey?: string;
-    provider?: Provider;
+
+    /** Upstream provider key; optional because some models may be public/free. */
     providerKey?: string;
+
+    /** Override the default llmlayer endpoint. */
     baseURL?: string;
+
+    /** Request timeout in milliseconds (default = 60 000). */
     timeoutMs?: number;
 }
 
 export class LLMLayerClient {
     private readonly apiKey: string;
-    private readonly provider: Provider;
-    private readonly providerKey: string;
+    private readonly providerKey?: string;   // now optional
     private readonly baseURL: string;
     private readonly timeout: number;
-    private static readonly version = '0.1.6';        // <-- keep in sync with package.json
+    private static readonly version = '0.2.0';   // keep in sync with package.json
 
     constructor(opts: LLMLayerClientOptions = {}) {
         this.apiKey = opts.apiKey ?? process.env.LLMLAYER_API_KEY ?? missing('LLMLAYER_API_KEY');
-
-        this.provider = (opts.provider ??
-            (process.env.LLMLAYER_PROVIDER as Provider) ??
-            'openai') as Provider;
-
-        this.providerKey =
-            opts.providerKey ??
-            process.env[`${this.provider.toUpperCase()}_API_KEY`] ??
-            process.env.LLMLAYER_PROVIDER_KEY ??
-            missing(`${this.provider.toUpperCase()}_API_KEY`);
-
+        this.providerKey = opts.providerKey ?? process.env.LLMLAYER_PROVIDER_KEY;
         this.baseURL = (opts.baseURL ?? 'https://api.llmlayer.dev').replace(/\/$/, '');
-        //this.baseURL = (opts.baseURL ?? 'http://localhost:8000').replace(/\/$/, '');
+        // this.baseURL = (opts.baseURL ?? 'http://localhost:8000').replace(/\/$/, '');
         this.timeout = opts.timeoutMs ?? 60_000;
     }
 
     /* ────────── blocking request ────────── */
-    async search(params: Omit<SearchRequest, 'provider' | 'provider_key'>): Promise<SimplifiedSearchResponse> {
+    async search(
+        params: Omit<SearchRequest, 'provider_key'>,
+    ): Promise<SimplifiedSearchResponse> {
         const fetch = await getFetch();
-        const body: SearchRequest = { provider: this.provider, provider_key: this.providerKey, ...params };
+
+        // Merge caller-supplied params with the client’s providerKey (if any)
+        const body: SearchRequest = {
+            ...params,
+            ...(this.providerKey ? { provider_key: this.providerKey } : {}),
+        };
+
         const res = await fetch(`${this.baseURL}/api/v1/search`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
             signal: AbortSignal.timeout(this.timeout),
         });
+
         if (!res.ok) await this.raiseHttp(res);
         const payload = (await res.json()) as Record<string, unknown>;
         if ('error_type' in payload) throw buildErr(payload);
@@ -96,16 +100,22 @@ export class LLMLayerClient {
 
     /* ────────── streaming request ───────── */
     async *searchStream(
-        params: Omit<SearchRequest, 'provider' | 'provider_key'>,
+        params: Omit<SearchRequest, 'provider_key'>,
     ): AsyncGenerator<Record<string, unknown>> {
         const fetch = await getFetch();
-        const body: SearchRequest = { provider: this.provider, provider_key: this.providerKey, ...params };
+
+        const body: SearchRequest = {
+            ...params,
+            ...(this.providerKey ? { provider_key: this.providerKey } : {}),
+        };
+
         const res = await fetch(`${this.baseURL}/api/v1/search_stream`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
             signal: AbortSignal.timeout(this.timeout),
         });
+
         if (!res.ok) await this.raiseHttp(res);
         if (!res.body) throw new LLMLayerError('No response body');
 

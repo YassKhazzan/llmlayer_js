@@ -1,8 +1,5 @@
-export type Provider = 'openai' | 'gemini' | 'anthropic' | 'groq' | 'deepseek' | 'grok';
-
 export interface SearchRequest {
-    provider: Provider;
-    provider_key: string;
+    provider_key?: string;
     query: string;
     model: string;
     location?: string;
@@ -28,4 +25,6 @@ export interface SimplifiedSearchResponse {
     output_tokens: number;
     sources: Array<Record<string, unknown>>;
     images: Array<Record<string, unknown>>;
+    model_cost: number | null;
+    llmlayer_cost: number | null;
 }
