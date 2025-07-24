@@ -10,12 +10,12 @@
 
 ## ✨ Features
 
-|                             |                                                          |
-| --------------------------- | -------------------------------------------------------- |
-| 🗂 **Multi‑provider**       | OpenAI, Anthropic (Claude), Gemini, Groq, DeepSeek       |
+|                             |                                                        |
+| --------------------------- | ------------------------------------------------------ |
+| 🗂 **Multi‑provider**       | OpenAI, Groq, DeepSeek       |
 | 🔄 **Blocking & Streaming** | Promise‑based blocking call **or** async‑iterator stream |
-| ⏱ **SSE chunks**            | Low‑latency output perfect for chat UIs & CLIs           |
-| 🛡 **Typed errors**         | `InvalidRequest`, `ProviderError`, `RateLimitError`, …   |
+| ⏱ **SSE chunks**            | Low‑latency output perfect for chat UIs & CLIs         |
+| 🛡 **Typed errors**         | `InvalidRequest`, `ProviderError`, `RateLimitError`, … |
 
 ---
 
