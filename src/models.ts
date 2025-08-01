@@ -16,6 +16,7 @@ export interface SearchRequest {
     temperature?: number;
     domain_filter?: string[];
     max_queries?: number;
+    search_context_size?: 'low' | 'medium' | 'high';
 }
 
 export interface SimplifiedSearchResponse {

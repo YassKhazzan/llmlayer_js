@@ -95,21 +95,23 @@ Type defs live in [`src/models.ts`](./src/models.ts).
 
 ## Key Request Parameters
 
-| name               | type                 | default      | notes                                            |
-| ------------------ | -------------------- | ------------ | ------------------------------------------------ |
-| `query`            | `string`             | —            | Your question                                    |
-| `model`            | `string`             | —            | Provider model name                              |
-| `returnSources`    | `boolean`            | `false`      | Attach sources list                              |
-| `returnImages`     | `boolean`            | `false`      | Include image results                            |
-| `answerType`       | `'markdown'\|…`      | `'markdown'` | `json` returns structured output                 |
-| `searchType`       | `'general'\| 'news'` | `'general'`  | Vertical bias                                    |
-| `responseLanguage` | `string`             | `'auto'`     | e.g. `'en'`, `'fr'`, or `'auto'` detection       |
-| `location`         | `string`             | `'us'`       | Geo bias for web search (ISO‑2 country code)     |
-| `dateFilter`       | `'hour'…'anytime'`   | `'anytime'`  | Recency filter                                   |
-| `domainFilter`     | `string[]`           | —            | `['nytimes.com', '-wikipedia.org']`              |
-| `maxQueries`       | `number`             | `1`          | How many search queries LLMLayer should generate |
-| `maxTokens`        | `number`             | `1500`       | LLM response length                              |
-| `temperature`      | `number`             | `0.7`        | Creativity knob                                  |
+| name                | type                 | default      | notes                                               |
+|---------------------|----------------------|--------------|-----------------------------------------------------|
+| `query`             | `string`             | —            | Your question                                       |
+| `model`             | `string`             | —            | Provider model name                                 |
+| `returnSources`     | `boolean`            | `false`      | Attach sources list                                 |
+| `returnImages`      | `boolean`            | `false`      | Include image results                               |
+| `answerType`        | `'markdown'\|…`      | `'markdown'` | `json` returns structured output                    |
+| `searchType`        | `'general'\| 'news'` | `'general'`  | Vertical bias                                       |
+| `responseLanguage`  | `string`             | `'auto'`     | e.g. `'en'`, `'fr'`, or `'auto'` detection          |
+| `location`          | `string`             | `'us'`       | Geo bias for web search (ISO‑2 country code)        |
+| `dateFilter`        | `'hour'…'anytime'`   | `'anytime'`  | Recency filter                                      |
+| `domainFilter`      | `string[]`           | —            | `['nytimes.com', '-wikipedia.org']`                 |
+| `maxQueries`        | `number`             | `1`          | How many search queries LLMLayer should generate    |
+| `maxTokens`         | `number`             | `1500`       | LLM response length                                 |
+| `temperature`       | `number`             | `0.7`        | Creativity knob                                     |
+| `searchContextSize` | `string`             | `medium`     | values : `low`  `medium`  `high` |
+
 
 See the **Parameters** page in the docs site for the full table.
 \*\* page in the docs site for the full table.
