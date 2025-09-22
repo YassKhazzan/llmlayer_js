@@ -1,8 +1,11 @@
 {
   "name": "llmlayer",
-  "version": "0.1.18",
+  "version": "0.2.0",
   "description": "Official JavaScript / TypeScript SDK for the LLMLayer Search & Answer API",
   "type": "module",
+  "engines": {
+   "node": ">=18.17"
+  },
   "author": {
     "name": "Yassine Khazzan",
     "email": "yassine@llmlayer.ai",
@@ -31,13 +34,14 @@
     "dev": "ts-node-dev --respawn src/examples/local-demo.mts"
   },
   "dependencies": {
-    "undici": "^6.21.3",
-    "dotenv": "^10.0.0"
+    "undici": "^6.21.3"
   },
   "devDependencies": {
+    "dotenv": "^10.0.0",
     "rimraf": "^5.0.1",
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.5.0"
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }
