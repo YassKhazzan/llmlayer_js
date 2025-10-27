@@ -1,14 +1,19 @@
-/*───────────────────────────── client.ts ─────────────────────────────*/
-import { parseSSE } from './sse.js';
+/*───────────────────────────── client.ts (API v2) ─────────────────────────────*/
 import type {
     SearchRequest,
-    SimplifiedSearchResponse,
+    AnswerResponse,
+    SearchStreamFrame,
     YTResponse,
     PdfContentResponse,
     ScrapeResponse,
     WebSearchResponse,
     WebSearchType,
-    RecencyType, ScrapeFormat,
+    RecencyType,
+    ScrapeFormat,
+    MapResponse,
+    MapArgs,
+    CrawlArgs,
+    CrawlStreamFrame,
 } from './models.js';
 import {
     AuthenticationError,
@@ -37,7 +42,7 @@ function timeoutSignal(ms: number): AbortSignal {
     return ctrl.signal;
 }
 
-/* ---------- camelCase -> snake_case ---------- */
+/* ---------- snake_case conversion for SearchRequest only ---------- */
 function toSnakeCase(str: string): string {
     return /[A-Z]/.test(str) ? str.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`) : str;
 }
@@ -47,8 +52,8 @@ function convertKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
     return out;
 }
 
-/* ---------- request body normalizer ---------- */
-function buildRequestBody(params: Record<string, any>): Record<string, any> {
+/* ---------- request builders ---------- */
+function buildSearchRequestBody(params: Record<string, any>): Record<string, any> {
     const body = convertKeysToSnakeCase(params);
 
     // normalize enums
@@ -63,10 +68,31 @@ function buildRequestBody(params: Record<string, any>): Record<string, any> {
             // let server validate if stringify fails
         }
     }
-
-    // NOTE: provider_key is no longer handled by the SDK
-
     return body;
+}
+
+function buildMapBody(args: MapArgs): Record<string, any> {
+    return {
+        url: args.url,
+        ignoreSitemap: args.ignoreSitemap ?? false,
+        includeSubdomains: args.includeSubdomains ?? false,
+        search: args.search ?? undefined,
+        limit: args.limit ?? 5000,
+        timeout: args.timeoutMs ?? 15000, // ms
+    };
+}
+
+function buildCrawlBody(args: CrawlArgs): Record<string, any> {
+    return {
+        url: args.url,
+        max_pages: args.maxPages ?? 25,
+        max_depth: args.maxDepth ?? 2,
+        timeout: args.timeoutSeconds ?? 60, // seconds
+        include_subdomains: args.includeSubdomains ?? false,
+        include_links: args.includeLinks ?? true,
+        include_images: args.includeImages ?? true,
+        formats: Array.isArray(args.formats) ? args.formats : ['markdown'],
+    };
 }
 
 /* ---------- error helpers ---------- */
@@ -76,6 +102,12 @@ const ERROR_MAP: Record<string, typeof LLMLayerError> = {
     provider_error: ProviderError,
     rate_limit: RateLimitError,
     internal_error: InternalServerError,
+
+    // backend-specific
+    scraping_error: InternalServerError,
+    search_error: InternalServerError,
+    map_error: InternalServerError,
+    crawl_stream_error: InternalServerError,
 };
 
 function classForStatus(status?: number): typeof LLMLayerError {
@@ -117,7 +149,6 @@ function toAsyncIterable(stream: any): AsyncIterable<Uint8Array> {
     if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
         return stream as AsyncIterable<Uint8Array>;
     }
-    // Web ReadableStream
     const rs: ReadableStream<Uint8Array> | undefined = stream;
     if (rs && typeof (rs as any).getReader === 'function') {
         return {
@@ -138,6 +169,54 @@ function toAsyncIterable(stream: any): AsyncIterable<Uint8Array> {
     throw new LLMLayerError('Unsupported response body stream');
 }
 
+/* ---------- minimal SSE data-frame parser (data-only) ---------- */
+async function* iterateSSEDataFrames(iterable: AsyncIterable<Uint8Array>): AsyncGenerator<any> {
+    const decoder = new TextDecoder();
+    let buf = '';
+    let dataBuf: string[] = [];
+
+    for await (const chunk of iterable) {
+        buf += decoder.decode(chunk, { stream: true });
+        let idx: number;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, idx).replace(/\r$/, '');
+            buf = buf.slice(idx + 1);
+
+            if (line === '') {
+                // end of event
+                if (dataBuf.length > 0) {
+                    const raw = dataBuf.join('').trim(); // join WITHOUT newlines to avoid JSON corruption
+                    dataBuf = [];
+                    if (raw) {
+                        try {
+                            yield JSON.parse(raw);
+                        } catch {
+                            // ignore malformed
+                        }
+                    }
+                }
+                continue;
+            }
+            if (line.startsWith(':')) continue;           // comment
+            if (line.startsWith('data:')) {
+                dataBuf.push(line.slice(5));                // preserve spacing
+            }
+            // ignore other SSE fields since backend emits data-only
+        }
+    }
+
+    // flush trailing buffer
+    if (buf.length > 0) {
+        const last = buf.replace(/\r?\n$/, '');
+        if (last.startsWith('data:')) {
+            const raw = last.slice(5);                    // preserve spacing
+            if (raw) {
+                try { yield JSON.parse(raw); } catch {}
+            }
+        }
+    }
+}
+
 /* ---------- public client ---------- */
 export interface LLMLayerClientOptions {
     /** Your LLMLayer account key (required). */
@@ -152,7 +231,7 @@ export class LLMLayerClient {
     private readonly apiKey: string;
     private readonly baseURL: string;
     private readonly timeout: number;
-    private static readonly version = '0.2.0'; // keep in sync with package.json
+    private static readonly version = '0.4.0'; // keep in sync with package.json
 
     constructor(opts: LLMLayerClientOptions = {}) {
         this.apiKey = opts.apiKey ?? process.env.LLMLAYER_API_KEY ?? missing('LLMLAYER_API_KEY');
@@ -161,15 +240,15 @@ export class LLMLayerClient {
     }
 
     /* =======================================================================
-     * Core Answer APIs (POST)
+     * Core Answer APIs (POST) — v2
      * ======================================================================= */
 
-    /** Blocking answer call → SimplifiedSearchResponse */
-    async answer(params: Omit<SearchRequest, never>): Promise<SimplifiedSearchResponse> {
+    /** Blocking answer call → AnswerResponse */
+    async answer(params: SearchRequest): Promise<AnswerResponse> {
         const fetch = await getFetch();
-        const body = buildRequestBody(params as Record<string, any>);
+        const body = buildSearchRequestBody(params as Record<string, any>);
 
-        const res = await fetch(`${this.baseURL}/api/v1/search`, {
+        const res = await fetch(`${this.baseURL}/api/v2/answer`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
@@ -179,47 +258,31 @@ export class LLMLayerClient {
         const payload = (await res.json()) as any;
         const data = unwrapDetail(payload);
         if (data && (data.error_type || data.error)) throw buildErr(payload, res.status);
-        return payload as SimplifiedSearchResponse;
+        return payload as AnswerResponse;
     }
 
-    /** Streaming answer via SSE → yields JSON events */
-    async *streamAnswer(params: Omit<SearchRequest, never>): AsyncGenerator<Record<string, unknown>> {
-        // Proactively block JSON streaming to match server behavior
+    /** Streaming answer via SSE → yields SearchStreamFrame objects (type: 'answer'|'sources'|'images'|...) */
+    async *streamAnswer(params: SearchRequest): AsyncGenerator<SearchStreamFrame> {
         const at = (params as any).answer_type ?? (params as any).answerType;
         if (typeof at === 'string' && at.toLowerCase() === 'json') {
             throw new InvalidRequest("Streaming does not support structured JSON output (answer_type='json').");
         }
 
         const fetch = await getFetch();
-        const body = buildRequestBody(params as Record<string, any>);
+        const body = buildSearchRequestBody(params as Record<string, any>);
 
-        const res = await fetch(`${this.baseURL}/api/v1/search_stream`, {
+        const res = await fetch(`${this.baseURL}/api/v2/answer_stream`, {
             method: 'POST',
-            headers: this.headers(),
+            headers: this.headers({ acceptSSE: true }),
             body: JSON.stringify(body),
             signal: timeoutSignal(this.timeout),
         });
         if (!res.ok) await this.raiseHttp(res);
         if (!res.body) throw new LLMLayerError('No response body');
 
-        const decoder = new TextDecoder();
-        async function* lineGen(stream: AsyncIterable<Uint8Array>) {
-            let buf = '';
-            for await (const chunk of stream) {
-                buf += decoder.decode(chunk, { stream: true });
-                let idx;
-                while ((idx = buf.indexOf('\n')) >= 0) {
-                    const line = buf.slice(0, idx).replace(/\r$/, '');
-                    buf = buf.slice(idx + 1);
-                    yield line;
-                }
-            }
-            if (buf) yield buf;
-        }
-
         const iterable = toAsyncIterable(res.body as any);
-        for await (const evt of parseSSE(lineGen(iterable))) {
-            const data = unwrapDetail(evt);
+        for await (const frame of iterateSSEDataFrames(iterable)) {
+            const data = unwrapDetail(frame);
             const simple = (data as any)?.error;
             if (simple) {
                 const s = String(simple).toLowerCase();
@@ -228,15 +291,15 @@ export class LLMLayerClient {
                 }
                 throw new LLMLayerError(String(simple));
             }
-            if ((data as any)?.type === 'error' || (data as any).error_type) {
+            if ((data as any)?.type === 'error' || (data as any)?.error_type) {
                 throw buildErr(data as any);
             }
-            yield data as any;
+            yield data as SearchStreamFrame;
         }
     }
 
     /* =======================================================================
-     * Utility endpoints (POST bodies)
+     * Utility endpoints (POST bodies) — v2
      * ======================================================================= */
 
     async getYouTubeTranscript(args: { url: string; language?: string }): Promise<YTResponse>;
@@ -245,7 +308,7 @@ export class LLMLayerClient {
         const fetch = await getFetch();
         const body = typeof a === 'string' ? { url: a, language: b } : { url: a.url, language: a.language };
 
-        const res = await fetch(`${this.baseURL}/api/v1/youtube_transcript`, {
+        const res = await fetch(`${this.baseURL}/api/v2/youtube_transcript`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
@@ -264,7 +327,7 @@ export class LLMLayerClient {
         const fetch = await getFetch();
         const body = typeof a === 'string' ? { url: a } : { url: a.url };
 
-        const res = await fetch(`${this.baseURL}/api/v1/get_pdf_content`, {
+        const res = await fetch(`${this.baseURL}/api/v2/get_pdf_content`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
@@ -279,27 +342,31 @@ export class LLMLayerClient {
 
     async scrape(args: {
         url: string;
-        format?: ScrapeFormat ;
+        formats?: ScrapeFormat[];         // v2: multiple formats
         includeImages?: boolean;
         includeLinks?: boolean;
     }): Promise<ScrapeResponse>;
     async scrape(
         url: string,
-        opts?: { format?: 'markdown' | 'html' | 'pdf' | 'screenshot'; includeImages?: boolean; includeLinks?: boolean },
+        opts?: { formats?: ScrapeFormat[]; format?: ScrapeFormat; includeImages?: boolean; includeLinks?: boolean },
     ): Promise<ScrapeResponse>;
     async scrape(a: any, b?: any): Promise<ScrapeResponse> {
         const fetch = await getFetch();
         const isString = typeof a === 'string';
         const url = isString ? (a as string) : a.url;
         const opts = (isString ? b : a) ?? {};
+        const formats: ScrapeFormat[] = Array.isArray(opts.formats)
+            ? opts.formats
+            : [opts.format ?? 'markdown'];
+
         const body = {
             url,
+            formats,
             include_images: opts.includeImages ?? true,
             include_links: opts.includeLinks ?? true,
-            format: opts.format ?? 'markdown',
         };
 
-        const res = await fetch(`${this.baseURL}/api/v1/scrape`, {
+        const res = await fetch(`${this.baseURL}/api/v2/scrape`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
@@ -328,7 +395,7 @@ export class LLMLayerClient {
             domain_filter: args.domainFilter,
         };
 
-        const res = await fetch(`${this.baseURL}/api/v1/web_search`, {
+        const res = await fetch(`${this.baseURL}/api/v2/web_search`, {
             method: 'POST',
             headers: this.headers(),
             body: JSON.stringify(body),
@@ -342,29 +409,83 @@ export class LLMLayerClient {
     }
 
     /* =======================================================================
+     * Map (POST) — v2 (`statusCode`)
+     * ======================================================================= */
+
+    async map(args: MapArgs): Promise<MapResponse>;
+    async map(url: string, opts?: Omit<MapArgs, 'url'>): Promise<MapResponse>;
+    async map(a: any, b?: any): Promise<MapResponse> {
+        const fetch = await getFetch();
+        const args: MapArgs = typeof a === 'string' ? { ...(b ?? {}), url: a } : a;
+        const body = buildMapBody(args);
+
+        const res = await fetch(`${this.baseURL}/api/v2/map`, {
+            method: 'POST',
+            headers: this.headers(),
+            body: JSON.stringify(body),
+            signal: timeoutSignal(this.timeout),
+        });
+        if (!res.ok) await this.raiseHttp(res);
+        const payload = await res.json();
+        const data = unwrapDetail(payload);
+        if (data && (data.error_type || data.error)) throw buildErr(payload, res.status);
+        return payload as MapResponse;
+    }
+
+    /* =======================================================================
+     * Crawl stream (POST) — v2 (`url` + `formats`, frames: page/usage/done/error)
+     * ======================================================================= */
+
+    async *crawlStream(args: CrawlArgs): AsyncGenerator<CrawlStreamFrame> {
+        const fetch = await getFetch();
+        const body = buildCrawlBody(args);
+
+        const res = await fetch(`${this.baseURL}/api/v2/crawl_stream`, {
+            method: 'POST',
+            headers: this.headers({ acceptSSE: true }),
+            body: JSON.stringify(body),
+            signal: timeoutSignal(this.timeout),
+        });
+        if (!res.ok) await this.raiseHttp(res);
+        if (!res.body) throw new LLMLayerError('No response body');
+
+        const iterable = toAsyncIterable(res.body as any);
+        for await (const frame of iterateSSEDataFrames(iterable)) {
+            const data = unwrapDetail(frame);
+            if ((data as any)?.type === 'error' || (data as any)?.error_type) {
+                throw buildErr(data as any);
+            }
+            const simple = (data as any)?.error;
+            if (simple && typeof simple === 'string') throw new LLMLayerError(simple);
+            yield data as CrawlStreamFrame;
+        }
+    }
+
+    /* =======================================================================
      * Back-compat aliases (deprecated)
      * ======================================================================= */
 
     /** @deprecated use answer() */
-    async search(params: Omit<SearchRequest, never>): Promise<SimplifiedSearchResponse> {
+    async search(params: SearchRequest): Promise<AnswerResponse> {
         // eslint-disable-next-line no-console
         console.warn('[llmlayer] search() is deprecated; use answer()');
         return this.answer(params);
     }
 
     /** @deprecated use streamAnswer() */
-    async *searchStream(params: Omit<SearchRequest, never>): AsyncGenerator<Record<string, unknown>> {
+    async *searchStream(params: SearchRequest): AsyncGenerator<SearchStreamFrame> {
         // eslint-disable-next-line no-console
         console.warn('[llmlayer] searchStream() is deprecated; use streamAnswer()');
         for await (const e of this.streamAnswer(params)) yield e;
     }
 
     /* ---------- internals ---------- */
-    private headers() {
+    private headers(opts?: { acceptSSE?: boolean }) {
         const h: Record<string, string> = {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.apiKey}`,
         };
+        if (opts?.acceptSSE) h['Accept'] = 'text/event-stream';
         if (typeof window === 'undefined') {
             h['User-Agent'] = `llmlayer-js-sdk/${LLMLayerClient.version}`;
         }
