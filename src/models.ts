@@ -77,7 +77,7 @@ export interface PdfContentResponse {
     text: string;
     pages: number;
     url: string;
-    status_code: number;
+    statusCode: number;
     cost?: number | null;
 }
 
@@ -149,6 +149,8 @@ export interface CrawlArgs {
     includeSubdomains?: boolean;
     includeLinks?: boolean;
     includeImages?: boolean;
+    advancedProxy?: boolean;        // maps to backend advanced_proxy
+    mainContentOnly?: boolean;
     formats?: ScrapeFormat[];    // which artifacts to return per page
 }
 

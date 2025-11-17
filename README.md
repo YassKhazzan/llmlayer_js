@@ -314,9 +314,11 @@ for (const r of res2.results) {
 // Request multiple outputs in one call
 const r = await client.scrape({
   url: 'https://example.com',
-  formats: ['markdown', 'html'], // 'markdown' | 'html' | 'screenshot' | 'pdf'
+  formats: ['markdown', 'html'], // 'markdown' | 'html' | 'screenshot' 
   includeImages: true,
   includeLinks: true,
+  mainContentOnly: false,
+  advancedProxy: false,
 });
 console.log('status:', r.statusCode, 'cost:', r.cost);
 console.log('md len:', (r.markdown || '').length, 'html?', !!r.html, 'pdf?', !!r.pdf, 'shot?', !!r.screenshot);
@@ -354,7 +356,11 @@ for await (const f of client.crawlStream({
   maxPages: 5,
   maxDepth: 1,
   timeoutSeconds: 30,
-  formats: ['markdown'], // 'markdown' | 'html' | 'screenshot' | 'pdf'
+  formats: ['markdown'], // 'markdown' 
+  includeImages: true,
+  includeLinks: true,
+  mainContentOnly: false,
+  advancedProxy: false,
 })) {
   if (f.type === 'page') {
     const p = f.page;

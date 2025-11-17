@@ -1,6 +1,6 @@
 {
   "name": "llmlayer",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Official JavaScript / TypeScript SDK for the LLMLayer Web API for AI Agents",
   "type": "module",
   "sideEffects": false,

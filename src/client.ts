@@ -78,7 +78,7 @@ function buildMapBody(args: MapArgs): Record<string, any> {
         includeSubdomains: args.includeSubdomains ?? false,
         search: args.search ?? undefined,
         limit: args.limit ?? 5000,
-        timeout: args.timeoutMs ?? 15000, // ms
+        timeout: args.timeoutMs ?? 45000, // ms
     };
 }
 
@@ -91,6 +91,8 @@ function buildCrawlBody(args: CrawlArgs): Record<string, any> {
         include_subdomains: args.includeSubdomains ?? false,
         include_links: args.includeLinks ?? true,
         include_images: args.includeImages ?? true,
+        advanced_proxy: args.advancedProxy ?? false,
+        main_content_only: args.mainContentOnly ?? false,
         formats: Array.isArray(args.formats) ? args.formats : ['markdown'],
     };
 }
@@ -345,10 +347,12 @@ export class LLMLayerClient {
         formats?: ScrapeFormat[];         // v2: multiple formats
         includeImages?: boolean;
         includeLinks?: boolean;
+        advancedProxy?: boolean;
+        mainContentOnly?: boolean;
     }): Promise<ScrapeResponse>;
     async scrape(
         url: string,
-        opts?: { formats?: ScrapeFormat[]; format?: ScrapeFormat; includeImages?: boolean; includeLinks?: boolean },
+        opts?: { formats?: ScrapeFormat[]; format?: ScrapeFormat; includeImages?: boolean; includeLinks?: boolean, advancedProxy?: boolean; mainContentOnly?: boolean },
     ): Promise<ScrapeResponse>;
     async scrape(a: any, b?: any): Promise<ScrapeResponse> {
         const fetch = await getFetch();
@@ -364,6 +368,8 @@ export class LLMLayerClient {
             formats,
             include_images: opts.includeImages ?? true,
             include_links: opts.includeLinks ?? true,
+            advanced_proxy: opts.advancedProxy ?? false,
+            main_content_only: opts.mainContentOnly ?? false,
         };
 
         const res = await fetch(`${this.baseURL}/api/v2/scrape`, {
